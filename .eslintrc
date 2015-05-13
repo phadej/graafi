@@ -1,0 +1,13 @@
+{
+  "env": {
+    "browser": true
+  },
+  "rules": {
+    "comma-dangle": 0,
+    "quotes": [2, "single", "avoid-escape"]
+  },
+  "globals": {
+    "Cycle": true,
+    "_": true
+  }
+}
