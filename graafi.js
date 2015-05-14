@@ -19,6 +19,8 @@
     var MAXVISIBLEROWS = 6;
     var MAXROWS = 30;
 
+    var MAXUNDO = 1000;
+
     function button(title, disabled, ev) {
         var attributes = {
             'data-click': JSON.stringify(ev || null),
@@ -177,7 +179,7 @@
         return {
             state: newState,
             future: [],
-            past: [state].concat(system.past)
+            past: _.take([state].concat(system.past), MAXUNDO) // no unlimited undo
         };
     }
 
