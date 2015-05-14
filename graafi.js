@@ -16,7 +16,8 @@
     var MAXCOLS = 9;
 
     var MINROWS = 1;
-    var MAXROWS = 6;
+    var MAXVISIBLEROWS = 6;
+    var MAXROWS = 30;
 
     function button(title, disabled, ev) {
         var attributes = {
@@ -36,6 +37,15 @@
         ]);
     }
 
+    var STYLES = [
+        'rgba( 51, 102, 153, 0.5)',
+        'rgba(153,  51, 102, 0.5)',
+        'rgba(102, 153,  51, 0.5)',
+        'rgba( 51, 153, 102, 0.5)',
+        'rgba(102,  51, 153, 0.5)',
+        'rgba(153, 102,  51, 0.5)',
+    ];
+
     var initialState = {
         fields: [
             'FP',
@@ -45,20 +55,15 @@
             'Obscurity',
         ],
         items: [
-            { title: 'Haskell', data: [3, 1, 3, 2, 0] },
-            { title: 'JavaScript', data: [2, 2, 0, 1, 2] },
-            { title: 'C', data: [1, 1, 1, 3, 2] },
+            { title: 'Haskell', data: [3, 1, 3, 2, 0], visible: true },
+            { title: 'JavaScript', data: [2, 2, 0, 1, 2], visible: false },
+            { title: 'C', data: [1, 1, 1, 3, 2], visible: true },
         ],
     };
 
-    var STYLES = [
-        'rgba( 51, 102, 153, 0.5)',
-        'rgba(153,  51, 102, 0.5)',
-        'rgba(102, 153,  51, 0.5)',
-        'rgba( 51, 153, 102, 0.5)',
-        'rgba(102,  51, 153, 0.5)',
-        'rgba(153, 102,  51, 0.5)',
-    ];
+    function isVisible(item) {
+      return item.visible;
+    }
 
     function addColumn(newState) {
         var colCount = newState.fields.length;
@@ -75,10 +80,11 @@
         });
     }
 
-    function addRow(newState) {
+    function addRow(newState, visibleCount) {
         newState.items.push({
             title: 'Row ' + (newState.items.length + 1),
             data: _.range(newState.fields.length).map(function () { return Math.floor(Math.random() * (MAXGRADE + 1)); }),
+            visible: visibleCount < MAXVISIBLEROWS
         });
     }
 
@@ -129,18 +135,21 @@
 
     function applyEvent(state, ev) {
         var newState = _.cloneDeep(state);
+        var visibleItems = state.items.filter(isVisible);
+        var visibleCount = visibleItems.length;
 
         switch (ev.type) {
             case 'plus': newState.items[ev.rowIdx].data[ev.colIdx] += 1; break;
             case 'minus': newState.items[ev.rowIdx].data[ev.colIdx] -= 1; break;
             case 'add-col': addColumn(newState); break;
             case 'remove-col': removeColumn(newState, ev.colIdx); break;
-            case 'add-row': addRow(newState); break;
+            case 'add-row': addRow(newState, visibleCount); break;
             case 'remove-row': removeRow(newState, ev.rowIdx); break;
             case 'move-right': moveRight(newState, ev.colIdx); break;
             case 'move-left': moveLeft(newState, ev.colIdx); break;
             case 'column-header': newState.fields[ev.colIdx] = ev.value; break;
             case 'row-header': newState.items[ev.rowIdx].title = ev.value; break;
+            case 'show-hide': newState.items[ev.rowIdx].visible = ev.value; break;
             default:
                 /* eslint-disable no-console */
                 console.warn('UNKNOWN EVENT', ev);
@@ -154,6 +163,8 @@
     function render(state) {
         var rowCount = state.items.length;
         var colCount = state.fields.length;
+        var visibleItems = state.items.filter(isVisible);
+        var visibleCount = visibleItems.length;
 
         function calcR(grade) {
             return MINRADIUS + grade / MAXGRADE * (GRAPHRADIUS - MINRADIUS);
@@ -231,7 +242,7 @@
             }, field);
         });
 
-        var otherTitles = state.items.map(function (item, rowIdx) {
+        var otherTitles = visibleItems.map(function (item, rowIdx) {
             return svg('text', {
                 attributes: {
                     x: 10,
@@ -242,7 +253,7 @@
             }, item.title);
         });
 
-        var polygons = state.items.map(function (item, itemIdx) {
+        var polygons = visibleItems.map(function (item, itemIdx) {
             var points = item.data.map(function (grade, colIdx) {
                 var r = calcR(grade);
                 var theta = calcTheta(colIdx);
@@ -280,13 +291,13 @@
         });
 
         var headerRow = h('tr', _.flatten([
-            [h('th')],
+            [h('th'), h('th')],
             headerCells,
             [h('th', button('add column', colCount >= MAXCOLS, { type: 'add-col' }))],
         ]));
 
         var footerRow = h('tr', _.flatten([
-            [h('td', button('add row', rowCount >= MAXROWS, { type: 'add-row' }))],
+            [h('td'), h('td', button('add row', rowCount >= MAXROWS, { type: 'add-row' }))],
             _.range(colCount).map(function (colIdx) {
                 return h('td', button('remove column', colCount <= MINCOLS, { type: 'remove-col', colIdx: colIdx }));
             }),
@@ -294,21 +305,33 @@
         ]));
 
         var dataRows = state.items.map(function (item, rowIdx) {
+            var colorIdx = visibleItems.indexOf(item);
+            var background = colorIdx === -1 ? 'white' : STYLES[colorIdx % STYLES.length];
             return h('tr', {
                 style: {
-                    background: STYLES[rowIdx % STYLES.length],
+                    background: background,
                 }
             }, _.flatten([
-                [h('td', h('input', {
-                    value: item.title,
-                    attributes: {
-                        'data-input': JSON.stringify({ type: 'row-header', rowIdx: rowIdx }),
-                    }
-                }))],
+                [
+                    h('td', h('input', {
+                        checked: item.visible,
+                        disabled: !(item.visible ? visibleCount > 1 : visibleCount < MAXVISIBLEROWS),
+                        type: 'checkbox',
+                        attributes: {
+                            'data-checkbox': JSON.stringify({ type: 'show-hide', rowIdx: rowIdx })
+                        }
+                    })),
+                    h('td', h('input', {
+                        value: item.title,
+                        attributes: {
+                            'data-input': JSON.stringify({ type: 'row-header', rowIdx: rowIdx }),
+                        }
+                    }))
+                ],
                 item.data.map(function (value, colIdx) {
                     return dataCell(value, colIdx, rowIdx);
                 }),
-                [h('td', button('remove row', rowCount <= MINROWS, { type: 'remove-row', rowIdx: rowIdx }))],
+                [h('td', button('remove row', item.visible ? visibleCount <= MINROWS : rowCount <= MINROWS, { type: 'remove-row', rowIdx: rowIdx }))],
             ]));
         });
 
@@ -341,7 +364,15 @@
                 return data;
             });
 
-        return Rx.Observable.merge(buttonClicks$, inputs$)
+        var checkboxes$ = interactions.get('input[type=checkbox]', 'change')
+            .map(function (ev) {
+                var el = ev.target;
+                var data = JSON.parse(el.getAttribute('data-checkbox'));
+                data.value = el.checked;
+                return data;
+            });
+
+        return Rx.Observable.merge(buttonClicks$, inputs$, checkboxes$)
             .scan(initialState, applyEvent)
             .startWith(initialState)
             .map(render);
