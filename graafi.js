@@ -61,6 +61,7 @@
             { title: 'JavaScript', data: [2, 2, 0, 1, 2], visible: false },
             { title: 'C', data: [1, 1, 1, 3, 2], visible: true },
         ],
+        editable: false
     };
 
     var initialSystem = {
@@ -169,6 +170,8 @@
             case 'column-header': newState.fields[ev.colIdx] = ev.value; break;
             case 'row-header': newState.items[ev.rowIdx].title = ev.value; break;
             case 'show-hide': newState.items[ev.rowIdx].visible = ev.value; break;
+            case 'thaw': newState.editable = true; break;
+            case 'freeze': newState.editable = false; break;
             default:
                 /* eslint-disable no-console */
                 console.warn('UNKNOWN EVENT', ev);
@@ -192,6 +195,8 @@
         var colCount = state.fields.length;
         var visibleItems = state.items.filter(isVisible);
         var visibleCount = visibleItems.length;
+
+        var editable = state.editable;
 
         function calcR(grade) {
             return MINRADIUS + grade / MAXGRADE * (GRAPHRADIUS - MINRADIUS);
@@ -304,17 +309,18 @@
         }, _.flatten([grid1, grid2, titles, otherTitles, polygons]));
 
         var headerCells = state.fields.map(function (field, colIdx) {
-            return h('th', [
-                h('input', {
+            return h('th', _.flatten([
+                [editable ? h('input', {
                     value: field,
                     attributes: {
                         'data-input': JSON.stringify({ type: 'column-header', colIdx: colIdx }),
                     }
-                }),
-                h('br'),
-                button('←', false, { type: 'move-left', colIdx: colIdx }),
-                button('→', false, { type: 'move-right', colIdx: colIdx }),
-            ]);
+                }) : field], editable ? [
+                    h('br'),
+                    button('←', false, { type: 'move-left', colIdx: colIdx }),
+                    button('→', false, { type: 'move-right', colIdx: colIdx }),
+                ] : []
+            ]));
         });
 
         var headerRow = h('tr', _.flatten([
@@ -323,7 +329,7 @@
                 button('redo', !hasFuture, { type: 'redo' }),
             ])],
             headerCells,
-            [h('th', button('add column', colCount >= MAXCOLS, { type: 'add-col' }))],
+            editable ? [h('th', button('add column', colCount >= MAXCOLS, { type: 'add-col' }))] : [],
         ]));
 
         var footerRow = h('tr', _.flatten([
@@ -351,29 +357,34 @@
                             'data-checkbox': JSON.stringify({ type: 'show-hide', rowIdx: rowIdx })
                         }
                     })),
-                    h('td', h('input', {
+                    h('td.rowtitle', editable ? h('input', {
                         value: item.title,
                         attributes: {
                             'data-input': JSON.stringify({ type: 'row-header', rowIdx: rowIdx }),
                         }
-                    }))
+                    }) : item.title)
                 ],
                 item.data.map(function (value, colIdx) {
                     return dataCell(value, colIdx, rowIdx);
                 }),
-                [h('td', button('remove row', item.visible ? visibleCount <= MINROWS : rowCount <= MINROWS, { type: 'remove-row', rowIdx: rowIdx }))],
+                editable ? [h('td', button('remove row', item.visible ? visibleCount <= MINROWS : rowCount <= MINROWS, { type: 'remove-row', rowIdx: rowIdx }))] : [],
             ]));
         });
 
         var table = h('table', _.flatten([
             [headerRow],
             dataRows,
-            [footerRow],
+            editable ? [footerRow] : [],
         ]));
+
+        var toolbar = h('div.toolbar', [
+            button(editable ? 'Freeze' : 'Thaw', false, { type: editable ? 'freeze' : 'thaw' }),
+        ]);
 
         var html = h('div', [
             svgElement,
-            table
+            table,
+            toolbar,
         ]);
 
         return html;
