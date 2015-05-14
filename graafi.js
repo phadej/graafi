@@ -336,7 +336,7 @@
         var inputs$ = interactions.get('input', 'input')
             .map(function (ev) {
                 var el = ev.target;
-                var data = JSON.parse(ev.target.getAttribute('data-input'));
+                var data = JSON.parse(el.getAttribute('data-input'));
                 data.value = el.value;
                 return data;
             });
