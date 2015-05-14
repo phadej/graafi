@@ -329,14 +329,14 @@
     function computer(interactions) {
         var buttonClicks$ = interactions.get('button', 'click')
             .map(function (ev) {
-                return JSON.parse(ev.srcElement.getAttribute('data-click'));
+                return JSON.parse(ev.target.getAttribute('data-click'));
             })
             .filter(_.negate(_.isEmpty));
 
         var inputs$ = interactions.get('input', 'input')
             .map(function (ev) {
-                var el = ev.srcElement;
-                var data = JSON.parse(ev.srcElement.getAttribute('data-input'));
+                var el = ev.target;
+                var data = JSON.parse(ev.target.getAttribute('data-input'));
                 data.value = el.value;
                 return data;
             });
