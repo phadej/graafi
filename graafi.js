@@ -142,6 +142,33 @@
         });
     }
 
+    function doSave(state) {
+        var a = window.document.createElement('a');
+        a.href = window.URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], {type: 'application/json'}));
+        a.download = 'graafi.json';
+
+        // Append anchor to body.
+        document.body.appendChild(a);
+        a.click();
+
+        // Remove anchor from body
+        document.body.removeChild(a);
+    }
+
+    function doLoad(file, contents) {
+        try {
+            var json = JSON.parse(contents);
+            // TODO: validate
+            return {
+                past: [],
+                future: [],
+                state: json
+            };
+        } catch (e) {
+            return null;
+        }
+    }
+
     function applyEvent(system, ev) {
         var state = system.state;
         var newState = _.cloneDeep(state);
@@ -159,6 +186,10 @@
                 past: [state].concat(system.past),
                 future: system.future.slice(1)
             };
+            case 'thaw': newState.editable = true; return { state: newState, past: system.past, future: system.future };
+            case 'freeze': newState.editable = false; return { state: newState, past: system.past, future: system.future };
+            case 'save': doSave(state); return system;
+            case 'load': return doLoad(ev.file, ev.contents) || system;
             case 'plus': newState.items[ev.rowIdx].data[ev.colIdx] += 1; break;
             case 'minus': newState.items[ev.rowIdx].data[ev.colIdx] -= 1; break;
             case 'add-col': addColumn(newState); break;
@@ -170,8 +201,6 @@
             case 'column-header': newState.fields[ev.colIdx] = ev.value; break;
             case 'row-header': newState.items[ev.rowIdx].title = ev.value; break;
             case 'show-hide': newState.items[ev.rowIdx].visible = ev.value; break;
-            case 'thaw': newState.editable = true; break;
-            case 'freeze': newState.editable = false; break;
             default:
                 /* eslint-disable no-console */
                 console.warn('UNKNOWN EVENT', ev);
@@ -379,6 +408,11 @@
 
         var toolbar = h('div.toolbar', [
             button(editable ? 'Freeze' : 'Thaw', false, { type: editable ? 'freeze' : 'thaw' }),
+            button('Save', false, { type: 'save' }),
+            h('br'),
+            h('input#load-file', {
+                type: 'file'
+            })
         ]);
 
         var html = h('div', [
@@ -413,7 +447,24 @@
                 return data;
             });
 
-        return Rx.Observable.merge(buttonClicks$, inputs$, checkboxes$)
+        var loadFile$ = interactions.get('input#load-file', 'change')
+            .flatMap(function (ev) {
+                function f(file, callback) {
+                    var reader = new FileReader();
+                    reader.onload = function (ev2) {
+                        callback({
+                            type: 'load',
+                            file: file,
+                            contents: ev2.target.result
+                        });
+                    };
+                    reader.readAsText(file);
+                }
+
+                return Rx.Observable.fromCallback(f)(ev.target.files[0]);
+            });
+
+        return Rx.Observable.merge(buttonClicks$, inputs$, checkboxes$, loadFile$)
             .scan(initialSystem, applyEvent)
             .startWith(initialSystem)
             .map(render);
