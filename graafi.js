@@ -61,6 +61,12 @@
         ],
     };
 
+    var initialSystem = {
+        state: initialState,
+        past: [],
+        future: [],
+    };
+
     function isVisible(item) {
       return item.visible;
     }
@@ -133,12 +139,23 @@
         });
     }
 
-    function applyEvent(state, ev) {
+    function applyEvent(system, ev) {
+        var state = system.state;
         var newState = _.cloneDeep(state);
         var visibleItems = state.items.filter(isVisible);
         var visibleCount = visibleItems.length;
 
         switch (ev.type) {
+            case 'undo': return {
+                state: system.past[0],
+                past: system.past.slice(1),
+                future: [state].concat(system.future)
+            };
+            case 'redo': return {
+                state: system.future[0],
+                past: [state].concat(system.past),
+                future: system.future.slice(1)
+            };
             case 'plus': newState.items[ev.rowIdx].data[ev.colIdx] += 1; break;
             case 'minus': newState.items[ev.rowIdx].data[ev.colIdx] -= 1; break;
             case 'add-col': addColumn(newState); break;
@@ -157,10 +174,18 @@
                 break;
         }
 
-        return newState;
+        return {
+            state: newState,
+            future: [],
+            past: [state].concat(system.past)
+        };
     }
 
-    function render(state) {
+    function render(system) {
+        var state = system.state;
+        var hasPast = system.past.length > 0;
+        var hasFuture = system.future.length > 0;
+
         var rowCount = state.items.length;
         var colCount = state.fields.length;
         var visibleItems = state.items.filter(isVisible);
@@ -291,7 +316,10 @@
         });
 
         var headerRow = h('tr', _.flatten([
-            [h('th'), h('th')],
+            [h('th'), h('th', [
+                button('undo', !hasPast, { type: 'undo' }),
+                button('redo', !hasFuture, { type: 'redo' }),
+            ])],
             headerCells,
             [h('th', button('add column', colCount >= MAXCOLS, { type: 'add-col' }))],
         ]));
@@ -373,8 +401,8 @@
             });
 
         return Rx.Observable.merge(buttonClicks$, inputs$, checkboxes$)
-            .scan(initialState, applyEvent)
-            .startWith(initialState)
+            .scan(initialSystem, applyEvent)
+            .startWith(initialSystem)
             .map(render);
     }
 
