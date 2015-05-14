@@ -68,7 +68,7 @@
     };
 
     function isVisible(item) {
-      return item.visible;
+        return item.visible;
     }
 
     function addColumn(newState) {
