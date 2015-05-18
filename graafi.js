@@ -16,8 +16,8 @@
     var MAXCOLS = 9;
 
     var MINROWS = 1;
-    var MAXVISIBLEROWS = 6;
-    var MAXROWS = 30;
+    var MAXVISIBLEROWS = 12;
+    var MAXROWS = 40;
 
     var MAXUNDO = 1000;
 
