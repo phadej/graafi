@@ -101,21 +101,46 @@
         newState.items.splice(rowIdx, 1);
     }
 
+    // mutates arr
+    function makeArrayMoveRight(count, idx) {
+        if (idx < 0 || idx >= count) {
+            return _.identity
+        }
+
+        return function (arr) {
+            console.log(arr, count, idx);
+            if (idx === count - 1) {
+                arr.unshift(arr.splice(idx, 1)[0]);
+                console.log(arr, count, idx);
+            } else {
+                var tmp = arr[idx];
+                arr[idx] = arr[idx + 1];
+                arr[idx + 1] = tmp;
+            }
+        };
+    }
+
+    // mutates arr
+    function makeArrayMoveLeft(count, idx) {
+        if (idx < 0 || idx >= count) {
+            return _.identity;
+        }
+
+        return function (arr) {
+            if (idx === 0) {
+                return arr.push(arr.splice(0, 1)[0]);
+            } else {
+                var tmp = arr[idx];
+                arr[idx] = arr[idx - 1];
+                arr[idx - 1] = tmp;
+            }
+        };
+    }
+
     function moveRight(newState, colIdx) {
         var colCount = newState.fields.length;
-        var f = _.identity;
-        if (colIdx >= colCount - 1) {
-            f = function (arr) {
-                // add last to beginning
-                arr.splice(0, 0, arr.splice(colIdx, 1));
-            };
-        } else {
-            f = function (arr) {
-                var tmp = arr[colIdx];
-                arr[colIdx] = arr[colIdx + 1];
-                arr[colIdx + 1] = tmp;
-            };
-        }
+        var f = makeArrayMoveRight(colCount, colIdx);
+
         f(newState.fields);
         newState.items.forEach(function (item) {
             f(item.data);
@@ -124,22 +149,22 @@
 
     function moveLeft(newState, colIdx) {
         var colCount = newState.fields.length;
-        var f = _.identity;
-        if (colIdx <= 0) {
-            f = function (arr) {
-                arr.splice(colCount - 1, 0, arr.splice(0, 1));
-            };
-        } else {
-            f = function (arr) {
-                var tmp = arr[colIdx];
-                arr[colIdx] = arr[colIdx - 1];
-                arr[colIdx - 1] = tmp;
-            };
-        }
+        var f = makeArrayMoveLeft(colCount, colIdx);
+
         f(newState.fields);
         newState.items.forEach(function (item) {
             f(item.data);
         });
+    }
+
+    function moveUp(newState, rowIdx) {
+        var rowCount = newState.items.length;
+        makeArrayMoveLeft(rowCount, rowIdx)(newState.items);
+    }
+
+    function moveDown(newState, rowIdx) {
+        var rowCount = newState.items.length;
+        makeArrayMoveRight(rowCount, rowIdx)(newState.items);
     }
 
     function doSave(state) {
@@ -198,6 +223,8 @@
             case 'remove-row': removeRow(newState, ev.rowIdx); break;
             case 'move-right': moveRight(newState, ev.colIdx); break;
             case 'move-left': moveLeft(newState, ev.colIdx); break;
+            case 'move-up': moveUp(newState, ev.rowIdx); break;
+            case 'move-down': moveDown(newState, ev.rowIdx); break;
             case 'column-header': newState.fields[ev.colIdx] = ev.value; break;
             case 'row-header': newState.items[ev.rowIdx].title = ev.value; break;
             case 'show-hide': newState.items[ev.rowIdx].visible = ev.value; break;
@@ -357,12 +384,14 @@
                 button('undo', !hasPast, { type: 'undo' }),
                 button('redo', !hasFuture, { type: 'redo' }),
             ])],
+            editable ? [h('td')] : [],
             headerCells,
             editable ? [h('th', button('add column', colCount >= MAXCOLS, { type: 'add-col' }))] : [],
         ]));
 
         var footerRow = h('tr', _.flatten([
             [h('td'), h('td', button('add row', rowCount >= MAXROWS, { type: 'add-row' }))],
+            editable ? [h('td')] : [],
             _.range(colCount).map(function (colIdx) {
                 return h('td', button('remove column', colCount <= MINCOLS, { type: 'remove-col', colIdx: colIdx }));
             }),
@@ -393,6 +422,10 @@
                         }
                     }) : item.title)
                 ],
+                editable ? [h('td', [
+                    button('↑', false, { type: 'move-up', rowIdx: rowIdx }),
+                    button('↓', false, { type: 'move-down', rowIdx: rowIdx }),
+                ])] : [],
                 item.data.map(function (value, colIdx) {
                     return dataCell(value, colIdx, rowIdx);
                 }),
